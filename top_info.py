@@ -16,27 +16,30 @@ def get_pid_by_keyword(keyword):
     return pid, name
 
 
-def log_process_info(log_file, pid_list):
+def log_process_info(pid_list):
     out = []
     is_running = len(pid_list)
-    while is_running:
-        is_running = 0
-        # 获取所有进程列表
-        for proc in psutil.process_iter(['pid', 'cmdline', 'cpu_percent', 'memory_percent', 'memory_info']):
-            if proc.info['pid'] in pid_list:
-                pid = proc.info['pid']
-                name = proc.info['cmdline'][3]
-                cpu_percent = proc.info['cpu_percent']
-                mem_percent = proc.info['memory_percent']
-                memory_info = round(proc.info['memory_info'].rss /
-                                    (1024 * 1024 * 1024), 2)
-                out.append([pid, name, cpu_percent, mem_percent, memory_info])
-                is_running += 1
-        # 间隔时间（秒）
-        time.sleep(60 * 10)
+    try:
+        while is_running:
+            is_running = 0
+            # 获取所有进程列表
+            for proc in psutil.process_iter(['pid', 'cmdline', 'cpu_percent', 'memory_percent', 'memory_info']):
+                if proc.info['pid'] in pid_list:
+                    pid = proc.info['pid']
+                    name = proc.info['cmdline'][3]
+                    cpu_percent = proc.info['cpu_percent']
+                    mem_percent = proc.info['memory_percent']
+                    memory_info = round(proc.info['memory_info'].rss /
+                                        (1024 * 1024 * 1024), 2)
+                    out.append([pid, name, cpu_percent,
+                               mem_percent, memory_info])
+                    is_running += 1
+            # 间隔时间（秒）
+            time.sleep(60 * 10)
+    except:
+        print('Error occurred while collecting process information.')
     out = pd.DataFrame(out, columns=[
                        'PID', 'Name', 'CPU Usage (%)', 'Memory Usage (%)', 'Memory Info'])
-    out.to_csv(log_file, index=False)
     return out
 
 
@@ -77,6 +80,7 @@ if __name__ == "__main__":
     keyword = 'mainboard'
     log_file = "process_monitor.csv"
     pid_l, pid_name = get_pid_by_keyword(keyword)
-    data = log_process_info(log_file, pid_l)
+    data = log_process_info(pid_l)
+    data.to_csv(log_file, index=False)
     # data = pd.read_csv(log_file)
     plan(data, pid_l, pid_name, "process_monitor.png")
