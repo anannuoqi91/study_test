@@ -20,6 +20,7 @@ def cal_p(k, b, l, p1_x, p1_y):
 
 def calculate_intersection(k1, b1, k2, b2):
     # 检查平行线
+
     if k1 == k2:
         if b1 == b2:
             return "The lines are coincident (infinite intersection points)."
