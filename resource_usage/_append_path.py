@@ -1,6 +1,3 @@
 import sys
 import os
-_dir = os.getcwd()
-print(_dir)
-sys.path.append(_dir)
-sys.path.append(os.path.dirname(_dir))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))

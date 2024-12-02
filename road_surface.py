@@ -88,7 +88,7 @@ class GroundFinder:
                             points2.append(i_pt)
             points1.append([0, y, z, height_differences[grid_key]
                             ['std'], height_differences[grid_key]['height_diff']])
-        from write_pcd import write_pcd
+        from util_pcd import write_pcd
         write_pcd('2_ground_height_diff.pcd', points1, [
                   'x:F', 'y:F', 'z:F', 'height_std:F', 'height_diff:F'])
         write_pcd('2_ground_height_diff-g.pcd', points2, ['x:F', 'y:F', 'z:F'])

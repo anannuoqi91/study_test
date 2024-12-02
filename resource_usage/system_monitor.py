@@ -1,11 +1,11 @@
 
-import _append_path
+from . import _append_path
 from utils.util_file import prepare_directory
 import subprocess
 import pandas as pd
 import sys
 import re
-import time
+import os
 import atexit
 
 
@@ -57,9 +57,11 @@ class SystemMonitorLog:
         self._time_consume = time_consuming_min * 60
         self._parse_header = [self._parse_header_top, self._parse_header_task,
                               self._parse_header_CPU, self._parse_header_MEM, self._parse_header_SWAP]
+        self._bash_path = os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), 'system_monitor.bash')
         self._init_df()
         self._bash_manager = BashScriptManager(
-            "./system_monitor.bash", [self._log_path, str(self._time_interval_s), self._key_word])
+            self._bash_path, [self._log_path, str(self._time_interval_s), self._key_word])
 
     def start_monitor_script(self):
         self._bash_manager.start_script()
