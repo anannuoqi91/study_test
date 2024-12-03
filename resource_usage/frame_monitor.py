@@ -25,6 +25,7 @@ class FrameMonitor:
         self._is_running = False
         self._thread = None
         self._sleep = interval_s
+        self._end = None
         self._setup_bash()
 
     def _setup_bash(self):
@@ -67,7 +68,7 @@ class FrameMonitor:
             process.kill()
 
     def _start(self):
-        while self._is_running:
+        while self._is_running and ((self._end is not None and time.time() < self._end) or self._end is None):
             self._timestamp = time.time()
             for c_name in self._channels_name:
                 self._get_channel_frame_rate(c_name)
@@ -93,6 +94,9 @@ class FrameMonitor:
                 writer = csv.writer(file)
                 writer.writerow(self._columns)
                 writer.writerows(self._info_df)
+
+    def set_duration(self, duration_s):
+        self._end = time.time() + duration_s
 
 
 if __name__ == "__main__":
