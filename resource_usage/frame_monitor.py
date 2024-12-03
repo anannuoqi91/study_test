@@ -96,9 +96,27 @@ class FrameMonitor:
 
 
 if __name__ == "__main__":
-    channel_name = ["omnisense/lidar/01/PointCloud",
-                    "omnisense/redis/status"]
-    frame_m = FrameMonitor(channel_name)
+    channel_name_01 = ["omnisense/lidar/01/PointCloud",
+                       "omnisense/preprocess/01/parallel_up_dynamic_points",
+                       "omnisense/segmentation/01/boxes",
+                       "omnisense/track/01/boxes",
+                       "omnisense/cluster/01/boxes",
+                       "omnisense/bkg/01/outlier_boxes",
+                       "omnisense/event/01/web",
+                       "omnisense/roi/01/boxes",
+                       "omnisense/roi/01/points"]
+    channel_name_02 = ["omnisense/lidar/02/PointCloud",
+                       "omnisense/preprocess/02/parallel_up_dynamic_points",
+                       "omnisense/segmentation/02/boxes",
+                       "omnisense/track/02/boxes",
+                       "omnisense/cluster/02/boxes",
+                       "omnisense/bkg/02/outlier_boxes",
+                       "omnisense/event/02/web",
+                       "omnisense/roi/02/boxes",
+                       "omnisense/roi/02/points"]
+    channel_name_fusion = ["omnisense/track_fusion/boxes",
+                           "omnisense/roi/03/boxes", "omnisense/roi/03/points"]
+    frame_m = FrameMonitor(channel_name_01)
     frame_m.start()
     time.sleep(10)  # Wait for 10 seconds
     frame_m.end()
