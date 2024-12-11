@@ -11,6 +11,21 @@ def prepare_directory(path):
                 os.makedirs(dir_name)
 
 
+def list_files_with_filter(directory, filter_str):
+    files = []
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+        if os.path.isfile(file_path) and not filename.endswith(filter_str):
+            files.append(filename)
+
+    return files
+
+
+def mkdir_directory(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
 if __name__ == '__main__':
     absolute_path = "/path/to/your/directory/"
 
