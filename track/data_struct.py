@@ -1,7 +1,9 @@
 from enum import Enum
 import copy
 import math
-from utils.util_angle import norm_angle_radius
+import warnings
+from ..utils.util_angle import norm_angle_radius
+from ..utils.util_logger import UtilLogger
 
 
 class ObjectType(Enum):
@@ -12,6 +14,19 @@ class ObjectType(Enum):
     BUS = 4
     UNKNOWN = 5
 
+    @staticmethod
+    def values():
+        return [e.value for e in ObjectType]
+
+
+class SourceDetect(Enum):
+    AI = 1
+    CL = 2
+
+    @staticmethod
+    def values():
+        return [e.value for e in SourceDetect]
+
 
 class PointXYZ:
     def __init__(self, x, y, z) -> None:
@@ -21,8 +36,23 @@ class PointXYZ:
 
 
 class ObjectBox:
-    # up -x front - z  right -y
     def __init__(self, **kwargs):
+        self._init_logger(**kwargs)
+        self._init_attributes(**kwargs)
+        self._init_movement(**kwargs)
+        self._init_match()
+        self._corners = self._cal_corners()
+
+    def _init_logger(self, **kwargs):
+        self._logger = getattr(kwargs, 'logger', None)
+        if self._logger is not None and not isinstance(self._logger, UtilLogger):
+            warnings.warn("logger should be UtilLogger instance.")
+            self._logger = None
+
+    def _init_attributes(self, **kwargs):
+        if self._logger is not None:
+            self._logger.logger.debug("ObjectBox init attributes.")
+
         self._id = kwargs['id']
         self._length = kwargs['length']
         self._width = kwargs['width']
@@ -30,25 +60,36 @@ class ObjectBox:
         self._time_idx = getattr(kwargs, 'time_idx', 0)
         self._is_valid = True if self._time_idx > 0 else False
         self._type = getattr(kwargs, 'type', ObjectType.UNKNOWN)
-        self._time_idx = getattr(kwargs, 'time_idx', 0)
-        # N-z E-y U-x
+        self._center = PointXYZ(
+            kwargs['center_up'], kwargs['center_right'], kwargs['center_front'])
+        self._source_detect = SourceDetect.CL
+
+    def _init_movement(self, **kwargs):
+        if self._logger is not None:
+            self._logger.logger.debug("ObjectBox init movement.")
+
         self._heading_azimuth_rad = norm_angle_radius(
             math.radians(kwargs['heading']))
-        self._velocity = {'x': kwargs['speed_x'],
-                          'y': kwargs['speed_y'], 'z': kwargs['speed_z']}
-        self._center = PointXYZ(
-            kwargs['center_x'], kwargs['center_y'], kwargs['center_z'])
-        self._corners = self._cal_corners()
+        self._velocity = {'up': kwargs['speed_up'],
+                          'right': kwargs['speed_right'],
+                          'front': kwargs['speed_front']}
+
+    def _init_match(self):
+        if self._logger is not None:
+            self._logger.logger.debug("ObjectBox init match.")
+
         self._covariance = []   # front right height v_z v_y v_z
         self._prob_match = 0
         self._age = 0
 
-    @property
-    def is_valid(self):
-        return self._is_valid
+    def yaw_rad(self):
+        return norm_angle_radius(math.arctan2(self._center.z, self._center.y))
 
-    def set_position_center(self, x, y, z):
-        self._center = {'x': x, 'y': y, 'z': z}
+    def set_source_detect(self, source_detect):
+        self._source_detect = source_detect
+
+    def set_position_center(self, up, right, front):
+        self._center = {'x': up, 'y': right, 'z': front}
 
     def deep_copy_object(self):
         return copy.deepcopy(self)
@@ -67,7 +108,36 @@ class ObjectBox:
                       self._corners['upper_back_right'].y]
         return [front_left, back_left, back_right, front_right]
 
+    def set_length(self, length):
+        self._length = length
+
+    def set_width(self, width):
+        self._width = width
+
+    def set_height(self, height):
+        self._height = height
+
+    def extend(self, front, back, left, right):
+        if self._logger is not None:
+            self._logger.logger.debug("ObjectBox extend.")
+
+        out = copy.deepcopy()
+        delta_vert = 0.5 * (front - back)
+        delta_hori = 0.5 * (left - right)
+        delta_x = delta_vert * \
+            math.cos(out.heading_rad) - delta_hori * math.sin(out.heading_rad)
+        delta_y = delta_vert * \
+            math.sin(out.heading_rad) + delta_hori * math.cos(out.heading_rad)
+        out.set_lenght(out.length + front + back)
+        out.set_width(out.width + left + right)
+        out.set_position_center(
+            out.position_center['x'], out.position_center['y'] + delta_y, out.position_center['z'] + delta_x)
+        return out
+
     def _cal_corners(self):
+        if self._logger is not None:
+            self._logger.logger.debug("ObjectBox cal_corners.")
+
         out = {}
         # front-left, back-left, back-right, front-right
         cosval = math.cos(self._heading_azimuth_rad)
@@ -95,6 +165,23 @@ class ObjectBox:
         out['lower_front_right'] = PointXYZ(
             -0.5 * self._height, self._center.y - dy_bl, self._center.z - dz_bl)
         return out
+
+    def set_id(self, id):
+        self._id = id
+
+    def set_prob_match(self, prob):
+        self._prob_match = prob
+
+    def set_age(self, age):
+        self._age = age
+
+    @property
+    def prob_match(self):
+        return self._prob_match
+
+    @property
+    def age(self):
+        return self._age
 
     @property
     def position_center(self):
@@ -126,7 +213,7 @@ class ObjectBox:
 
     @property
     def velocity(self):
-        return self._velocity
+        return copy.deepcopy(self._velocity)
 
     @property
     def heading_rad(self):
@@ -136,21 +223,10 @@ class ObjectBox:
     def id(self):
         return self._id
 
-    @id.setter
-    def id(self, id):
-        self._id = id
-
-    def set_prob_match(self, prob):
-        self._prob_match = prob
+    @property
+    def is_valid(self):
+        return self._is_valid
 
     @property
-    def prob_match(self):
-        return self._prob_match
-
-    @property
-    def age(self):
-        return self._age
-
-    @age.setter
-    def age(self, age):
-        self._age = age
+    def source_detect(self):
+        return self._source_detect

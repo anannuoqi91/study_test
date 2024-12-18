@@ -1,6 +1,7 @@
-from ..data_struct import ObjectBox
+from ..data_struct import ObjectBox, SourceDetect, ObjectType
 import numpy as np
-from utils.util_angle import norm_angle_radius
+import copy
+from utils.util_angle import norm_angle_radius, diff_angle_radius
 from utils.util_shapely_geom import create_polygon, union_area
 from utils.util_tools import projection_bev
 
@@ -161,3 +162,58 @@ class ObjectMatch:
         prob = np.exp(-0.5 * dist) / (np.power(2 * np.pi, 1.5)
                                       * np.sqrt(np.linalg.det(covariance)))
         return prob
+
+
+class ObjectsRematch:
+    def __init__(self):
+        self._obj_match = ObjectMatch()
+        self._init_value()
+
+    def _init_value(self):
+        self._cache_matched = []
+        self._cache_unmatch = []
+        self._cache_wasted = []
+
+    def input_data(self, predictions: list[ObjectBox], measurements: list[ObjectBox]):
+        self._init_value()
+        self._obj_match.input_data(predictions, measurements)
+        self._cache_matched = self._obj_match.matched_objects()
+        self._cache_unmatch = self._obj_match.unmatched_objects()
+        self._cache_wasted = self._obj_match.gate_true_unmatched()
+
+        cache = copy.deepcopy(self._cache_matched)
+        for obj in self._cache_wasted:
+            if obj.source_detect == SourceDetect.CL:
+                cache.append(obj)
+
+        for obj in predictions:
+            pass
+
+    def _rematch_splited_box(self, obj: ObjectBox, points, cache: list[ObjectBox]):
+        if obj.type == ObjectType.PEDESTRIAN or obj.type == ObjectType.CYCLIST:
+            return False
+
+        if obj.length < 1.0 and obj.width < 1.0:
+            return False
+
+        comp_f = 0
+        comp_b = 0
+        comp_l = 0
+        comp_r = 0
+        max_z = 0
+        min_z = 0
+        index_used = []
+        expanded = obj.extend(0.3, 0.3, 0.1, 0.1)
+        if self._l2_norm_2d(obj.velocity['front'], obj.velocity['right']) > 8 and \
+                self._l2_norm_2d(obj.position_center.z, obj.position_center.y) > 100:
+            tmp_yaw = norm_angle_radius(np.arctan2(
+                obj.position_center.y, obj.position_center.z))
+            if diff_angle_radius(obj.heading_rad, tmp_yaw) < M_PI_2:
+                expanded = obj.extend(
+                    0.3, 0.3 + 0.05 * self._l2_norm_2d(obj.velocity['front'], obj.velocity['right']), 0.1, 0.1)
+            else:
+                expanded = obj.extend(
+                    0.3 + 0.05 * self._l2_norm_2d(obj.velocity['front'], obj.velocity['right']), 0.3, 0.1, 0.1)
+
+    def _l2_norm_2d(self, x, y):
+        return np.sqrt(x * x + y * y)
