@@ -1,3 +1,12 @@
+"""
+坐标系 2个
+单个object的坐标系，已中心点为原点，前进方向为z轴，右方向为y轴，上方向为x轴
+全局坐标系，(0,0,0)为原点，正北方向为z轴，正东方向为y轴，上方向为x轴
+
+object_source可以作为目标检测可信度的权重表示，AI > CL
+"""
+
+
 from object_filter import ObjectFilter
 from data_struct import ObjectBox, ObjectType
 from objects_rematch import ObjectsRematch

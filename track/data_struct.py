@@ -36,12 +36,20 @@ class PointXYZ:
 
 
 class ObjectBox:
+    """
+    The coordinate system of a single object:
+    the center point as the origin, 
+    the forward direction as the z-axis, 
+    the right direction as the y-axis, 
+    the upward direction as the x-axis. 
+    """
+
     def __init__(self, **kwargs):
         self._init_logger(**kwargs)
         self._init_attributes(**kwargs)
         self._init_movement(**kwargs)
         self._init_match()
-        self._corners = self._cal_corners()
+        self._corners_global = self._cal_corners()
 
     def _init_logger(self, **kwargs):
         self._logger = getattr(kwargs, 'logger', None)
@@ -57,12 +65,12 @@ class ObjectBox:
         self._length = kwargs['length']
         self._width = kwargs['width']
         self._height = kwargs['height']
-        self._time_idx = getattr(kwargs, 'time_idx', 0)
+        self._time_idx = getattr(kwargs, 'time_idx', 0)   # timestamp
         self._is_valid = True if self._time_idx > 0 else False
         self._type = getattr(kwargs, 'type', ObjectType.UNKNOWN)
-        self._center = PointXYZ(
+        self._center_global = PointXYZ(
             kwargs['center_up'], kwargs['center_right'], kwargs['center_front'])
-        self._source_detect = SourceDetect.CL
+        self._source_detect = getattr(kwargs, 'type', SourceDetect.CL)
 
     def _init_movement(self, **kwargs):
         if self._logger is not None:
@@ -83,13 +91,13 @@ class ObjectBox:
         self._age = 0
 
     def yaw_rad(self):
-        return norm_angle_radius(math.arctan2(self._center.z, self._center.y))
+        return norm_angle_radius(math.arctan2(self._center_global.z, self._center_global.y))
 
     def set_source_detect(self, source_detect):
         self._source_detect = source_detect
 
     def set_position_center(self, up, right, front):
-        self._center = {'x': up, 'y': right, 'z': front}
+        self._center_global = PointXYZ(up, right, front)
 
     def deep_copy_object(self):
         return copy.deepcopy(self)

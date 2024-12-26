@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def check_headers(headers):
     if not isinstance(headers, list):
         raise ValueError("Headers must be list of strings.")
@@ -75,3 +78,42 @@ def write_pcd(filename, points: list, headers: list):
                     line += f"{int(pt[i])} "
             line = line.rstrip()
             f.write(line + '\n')
+
+
+def read_pcd_np(file_path):
+    with open(file_path, 'rb') as f:
+        # read header
+        fields, sizes, types, counts = [], [], [], []
+        while True:
+            line = f.readline().decode('utf-8').strip()
+            if line.startswith('FIELDS'):
+                fields = line.split()[1:]
+            elif line.startswith('SIZE'):
+                sizes = list(map(int, line.split()[1:]))
+            elif line.startswith('TYPE'):
+                types = line.split()[1:]
+            elif line.startswith('COUNT'):
+                counts = list(map(int, line.split()[1:]))
+            elif line.startswith('DATA'):
+                data_type = line.split()[1]
+                break
+
+        # build dtype
+        dtype_map = {'F4': np.float32, 'F8': np.float64,
+                     'U2': np.uint16, 'U4': np.uint32}
+        dtype_list = []
+        for field, size, type_, count in zip(fields, sizes, types, counts):
+            dtype_key = f"{type_}{size}"
+            if dtype_key not in dtype_map:
+                raise ValueError(f"Unsupported type: {type_}")
+            dtype = dtype_map[dtype_key]
+            dtype_list.append((field, dtype) if count ==
+                              1 else (field, dtype, count))
+        dtype = np.dtype(dtype_list)
+
+        # read data
+        if data_type == 'binary':
+            points = np.fromfile(f, dtype=dtype)
+            return points
+        else:
+            raise ValueError(f"Unsupported DATA type: {data_type}")
