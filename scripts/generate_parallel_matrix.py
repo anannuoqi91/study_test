@@ -8,9 +8,9 @@ MUST_HAVE_
 
 RUN COMMAND
     python generate_parallel_matrix.py --dir ./test/ [optional --outdir ./] [optional --tqdm 1]
-        --dir The directory where the PCD file is located. It is recommended to have 10 or more files.
+        --dir The directory where the PCD file is located. It is recommended to have 10 or more files. If the number of files is less than 10, it also supports flattening, but the accuracy may be reduced.
         --outdir The directory where the output YAML file will be saved. If not provided, it will be saved in 'output' folder under the executable file directory.
-        --tqdm 1 The execution time is relatively long; using this parameter allows you to see the progress bar.
+        --tqdm 1 The execution time is relatively long; using this parameter allows you to see the progress bar. If the number of files is less than 10, 'tqdm' will not be used with the execution time is relatively short.
 
 CALL FUNCTION
     run_parallel_matrix(pcd_files:list): -> matrix:numpy array
@@ -738,7 +738,7 @@ def main():
         point_xyz = o3d.io.read_point_cloud(file)
         matrix = get_flatten_matrix(point_xyz.points)
     matrix_str = matrix_format(matrix)
-    date_str = time.strftime("%Y-%m-%d", time.localtime())
+    date_str = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
     yaml_data = {
         'version': version,
         'date': date_str,
