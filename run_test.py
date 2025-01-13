@@ -1,4 +1,8 @@
-from resource_usage import system_monitor
+from pre_fusion.tools import *
 
-import os
-print("main: ", os.getcwd())
+
+if __name__ == '__main__':
+
+    s = convert_speed(70)
+    t = 272-223
+    print(s * t)

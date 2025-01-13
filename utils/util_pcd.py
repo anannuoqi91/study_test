@@ -17,11 +17,13 @@ def generate_headers(headers: list):
         'F': '4',
         'I64': '8',
         'I32': '4',
+        'U': '2',
     }
     type_map = {
         'F': 'F',
         'I64': 'I',
         'I32': 'I',
+        'U': 'U',
     }
     fields = "FIELDS "
     size = "SIZE "

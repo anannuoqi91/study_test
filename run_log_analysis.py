@@ -260,8 +260,8 @@ def get_log_files(log_dir):
 
 
 if __name__ == '__main__':
-    launch_file = "/home/demo/Documents/Highway/install/od/SW/modules/omnisense/launch/current.launch"
-    log_dir = "/home/demo/Documents/Highway/install/od/SW/data/log/"
+    launch_file = "/home/demo/Documents/RobinW/install/od/SW/modules/omnisense/launch/current.launch"
+    log_dir = "/home/demo/Documents/RobinW/install/od/SW/data/log/"
     log_c = LogFromMainboard()
     log_c.set_file_path_by_dir(log_dir)
     log_c.decode_logs()

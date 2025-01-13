@@ -1,105 +1,10 @@
-"""
-MUST_HAVE_       
-    python=3.8
-    open3d,
-    yaml,
-    cv2,
-    numpy
-
-RUN COMMAND
-    python generate_parallel_matrix.py --dir ./test/ [optional --outdir ./] [optional --tqdm 1]
-        --dir The directory where the PCD file is located. It is recommended to have 10 or more files. If the number of files is less than 10, it also supports flattening, but the accuracy may be reduced.
-        --outdir The directory where the output YAML file will be saved. If not provided, it will be saved in 'output' folder under the executable file directory.
-        --tqdm 1 The execution time is relatively long; using this parameter allows you to see the progress bar. If the number of files is less than 10, 'tqdm' will not be used with the execution time is relatively short.
-
-CALL FUNCTION
-    run_parallel_matrix(pcd_files:list): -> matrix:numpy array
-"""
-
-
 import os
 import numpy as np
 import open3d as o3d
 import cv2
-import logging
-import time
-import yaml
-import sys
-
-
-def write_yaml(path, data):
-    with open(path, 'w') as file:
-        yaml.dump(data, file, default_flow_style=False)
-        return True
-    return False
-
-
-def read_yaml(path):
-    loaded_data = {}
-    with open(path, 'r') as file:
-        loaded_data = yaml.load(file, Loader=yaml.FullLoader)
-    return loaded_data
-
-
-def get_files_in_current_directory(dir, extension='.pcd'):
-    pcd_files = []
-    for item in os.listdir(dir):
-        full_path = os.path.join(dir, item)
-        if os.path.isfile(full_path) and item.endswith(extension):
-            pcd_files.append(full_path)
-    return pcd_files
-
-
-def rotation_matrix(axis, angle):
-    axis = axis / np.linalg.norm(axis)
-    a = np.cos(angle / 2.0)
-    b, c, d = -axis * np.sin(angle / 2.0)
-    rot_matrix = np.array([[a * a + b * b - c * c - d * d, 2 * (b * c - a * d), 2 * (b * d + a * c)],
-                           [2 * (b * c + a * d), a * a + c * c -
-                            b * b - d * d, 2 * (c * d - a * b)],
-                           [2 * (b * d - a * c), 2 * (c * d + a * b), a * a + d * d - b * b - c * c]])
-    return rot_matrix
-
-
-def get_flatten_matrix(points, width=100, length=50.0, w_step=1.0, l_step=1.0):
-    points = np.asarray(points)
-    grids_width = int(length / l_step)
-    grids_length = int(width / w_step)
-    grids = [[10000, 0, 0]] * (grids_width * grids_length)
-    for point in points:
-        w = int((point[1] + width / 2) / w_step)
-        l = int(point[2] / l_step)
-        if w >= 0 and w < grids_width and l >= 0 and l < grids_length:
-            if point[0] < grids[l*grids_width + w][0]:
-                grids[l*grids_width + w] = [point[0], point[1], point[2]]
-    surface_points = [grid for grid in grids if grid[0] < 10.0]
-    surface_cloud = o3d.geometry.PointCloud()
-    surface_cloud.points = o3d.utility.Vector3dVector(surface_points)
-    plane_model, inliers = surface_cloud.segment_plane(
-        distance_threshold=0.15, ransac_n=3, num_iterations=200)
-    axis = np.cross(plane_model[:3], [1, 0, 0])
-    angle = np.arccos(np.dot(plane_model[:3],  [1, 0, 0]))
-    rot = rotation_matrix(axis, -angle)
-    transf = np.eye(4)
-    transf[:3, :3] = rot
-    transf[0, 3] = plane_model[3]
-    return transf
-
-
-def get_output_directory(out_dir, file_type='output'):
-    if not out_dir:
-        out_dir = os.path.join(os.getcwd(), file_type)
-    os.makedirs(out_dir, exist_ok=True)
-    return out_dir
-
-
-def print_progress_bar(iteration, total, length=40, pre_message=''):
-    percent = (iteration / total)
-    arrow = '>' * int(round(percent * length) - 1)
-    spaces = ' ' * (length - len(arrow))
-    sys.stdout.write(
-        f'\rProgress: {pre_message} | {arrow}{spaces}| {percent:.2%}')
-    sys.stdout.flush()
+from utils.util_tools import print_progress_bar
+from utils.util_logger import UtilLogger
+import warnings
 
 
 class PointsAtrr:
@@ -159,35 +64,40 @@ class GroundFinder:
             print_progress_bar(11, 100, pre_message='start rm_motion_obj')
         no_obj_cloud = self._rm_motion_obj()
         if no_obj_cloud.shape[0] == 0:
-            self._log_message(
-                f'no valid point cloud after rm_motion_obj .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error(
+                    "no valid point cloud after rm_motion_obj .")
             return False
         if self._tqdm:
             print_progress_bar(21, 100, pre_message='start downsample')
         self._downsample_points = self._downsample(no_obj_cloud)
         if len(self._downsample_points.points) == 0:
-            self._log_message(
-                f'points after downsample is empty .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error(
+                    "points after downsample is empty .")
             return False
         if self._tqdm:
             print_progress_bar(30, 100, pre_message='start estimate_normals')
         self._downsample_points = self._estimate_normals()
         if self._downsample_points is not None and np.asarray(self._downsample_points.normals).shape[0] == 0:
-            self._log_message(
-                f'normals after estimate_normals is empty .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error(
+                    "normals after estimate_normals is empty .")
             return False
         if self._tqdm:
             print_progress_bar(35, 100, pre_message='start find road surface')
         regions = self._region_growth()
         if len(regions) == 0:
-            self._log_message(f'can not find road surface .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error("can not find road surface .")
             return False
         if self._tqdm:
             print_progress_bar(55, 100, pre_message='start find_max_region')
         self._road_points = self._find_max_region(regions)
         # self._out_put_road_points()
         if len(self._road_points) == 0:
-            self._log_message(f'can not find road surface .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error("can not find road surface .")
             return False
         if self._tqdm:
             print_progress_bar(
@@ -206,8 +116,9 @@ class GroundFinder:
             print_progress_bar(
                 98, 100, pre_message='start generate_parallel_transform')
         if not self._generate_parallel_transform():
-            self._log_message(
-                f'generate parallel transform failed .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error(
+                    "generate parallel transform failed .")
             return False
         if self._tqdm:
             print_progress_bar(
@@ -327,8 +238,9 @@ class GroundFinder:
             if denoised_count < 1.0 * len(self._org_points[i]) / 2:
                 error_frame_count += 1
         if 1.0 * error_frame_count / len(self._planes) > 0.5:
-            self._log_message(
-                f'error frame rate error_frame_count / files_num > 0.5 .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error(
+                    f'error frame rate error_frame_count / files_num > 0.5 .')
             return False
         return True
 
@@ -429,7 +341,6 @@ class GroundFinder:
             if 0 <= zid < self._z_size and 0 <= yid < self._y_size:
                 ground_lut[zid, yid] = 255
                 ground_lut_h[zid, yid] = max(ground_lut_h[zid, yid], x)
-        # ground_lut, ground_lut_h = self._dilate(ground_lut, ground_lut_h)
         return ground_lut, ground_lut_h
 
     def _erode(self, image, kernel=3):
@@ -513,7 +424,8 @@ class GroundFinder:
         normals = np.asarray(self._downsample_points.normals)
         error_normal_count = np.sum(np.isnan(normals))
         if error_normal_count / normals.shape[0] > 0.5:
-            self._log_message(f'normals is invalid .', logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error(f'normals is invalid .')
             return None
         return self._downsample_points
 
@@ -562,41 +474,22 @@ class GroundFinder:
         return np.array(non_obj_cloud)
 
     def _init_logger(self, **kwargs):
+        self._logger = getattr(kwargs, 'logger', None)
         self._log_is_enabled = kwargs.get('enable_logger', False)
         if not self._log_is_enabled:
             return
-        self._log_is_enabled = True
-        logger_name = kwargs.get('logger', 'GroundFinder')
-        self._logger = logging.getLogger(logger_name)
-        if self._logger.handlers:
-            return
-        level = kwargs.get('logger_level', logging.INFO)
-        current_directory = kwargs.get('logger_dir', '')
-        if not current_directory:
-            current_directory = os.getcwd()
-            current_directory = os.path.join(current_directory, 'log')
-        os.makedirs(current_directory, exist_ok=True)
-        file_name = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
-        path = os.path.join(current_directory,
-                            f"ground_finder-{file_name}.log")
-        formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(lineno)d - %(message)s')
-        self._logger.setLevel(level)
-        console_handler = logging.StreamHandler()
-        file_handler = logging.FileHandler(path)
-        console_handler.setFormatter(formatter)
-        file_handler.setFormatter(formatter)
-        self._logger.addHandler(console_handler)
-        self._logger.addHandler(file_handler)
-
-    def _log_message(self, message, level):
-        if self._log_is_enabled:
-            self._logger.log(level, message)
+        if (self._logger is None) or (self._logger is not None and
+                                      not isinstance(self._logger, UtilLogger)):
+            warnings.warn("logger should be UtilLogger instance.")
+            self._logger = UtilLogger(self.__class__.__name__)
+            self._logger.logger.warning(
+                "logger should be UtilLogger instance. logger is not enabled, use default logger.")
 
     def _read_pcds(self, pcds):
         if len(pcds) < self._min_frame_num:
-            self._log_message(
-                f"Not enough files for ground finding, actual ({len(pcds)}), need ({self._min_frame_num}) .", logging.INFO)
+            if self._log_is_enabled:
+                self._logger.logger.info(
+                    f"Not enough files for ground finding, actual ({len(pcds)}), need ({self._min_frame_num}) .")
             return False
         pcds.sort()
         self._org_points = []
@@ -610,15 +503,18 @@ class GroundFinder:
             point_xyz = o3d.io.read_point_cloud(pcd)
             point_xyz = np.asarray(point_xyz.points)
             if point_xyz.shape[0] == 0:
-                self._log_message(f"No points in file ({pcd}).", logging.INFO)
+                if self._log_is_enabled:
+                    self._logger.logger.info(f"No points in file ({pcd}).")
             elif point_xyz.shape[0] < self._points_num_frame:
-                self._log_message(
-                    f"Not enough points for ground finding ({self._points_num_frame}) in file ({pcd}).", logging.INFO)
+                if self._log_is_enabled:
+                    self._logger.logger.info(
+                        f"Not enough points for ground finding ({self._points_num_frame}) in file ({pcd}).")
             else:
                 self._org_points.append(point_xyz)
         if len(self._org_points) < self._min_frame_num:
-            self._log_message(
-                f"Not enough valid files for ground finding, actual ({len(self._org_points)}), need ({self._min_frame_num}).", logging.ERROR)
+            if self._log_is_enabled:
+                self._logger.logger.error(
+                    f"Not enough valid files for ground finding, actual ({len(self._org_points)}), need ({self._min_frame_num}).")
             return False
         return True
 
@@ -673,82 +569,37 @@ class GroundFinder:
         self._y_range = 64
 
 
-def matrix_format(matrix):
-    formatted_string = np.array2string(np.array(matrix), formatter={
-                                       'float_kind': lambda x: f'{x:.6f}'}, separator=' ')
-    formatted_string = formatted_string.replace(
-        '[', '').replace(']', '').replace('\n', '').strip()
-    return formatted_string
+def rotation_matrix(axis, angle):
+    axis = axis / np.linalg.norm(axis)
+    a = np.cos(angle / 2.0)
+    b, c, d = -axis * np.sin(angle / 2.0)
+    rot_matrix = np.array([[a * a + b * b - c * c - d * d, 2 * (b * c - a * d), 2 * (b * d + a * c)],
+                           [2 * (b * c + a * d), a * a + c * c -
+                            b * b - d * d, 2 * (c * d - a * b)],
+                           [2 * (b * d - a * c), 2 * (c * d + a * b), a * a + d * d - b * b - c * c]])
+    return rot_matrix
 
 
-def args_parser():
-    import argparse
-    parser = argparse.ArgumentParser(
-        description='Generate parallel matrix Tool.')
-    parser.add_argument('--dir', type=str, required=True,
-                        help='The pcd files directory.')
-    parser.add_argument('--outdir', type=str, default='',
-                        help='The matrix out directory.')
-    parser.add_argument('--log', type=int, default=0,
-                        help='Log is enabled.')
-    parser.add_argument('--logdir', type=str, default='',
-                        help='Log file directory.')
-    parser.add_argument('--tqdm', type=int, default=0,
-                        help='Show progress bar or not?')
-    return parser.parse_args()
-
-
-def run_parallel_matrix(pcd_files, **kwargs):
-    gf = GroundFinder(**kwargs)
-    if gf.parallel(pcd_files):
-        matrix = gf.get_parallel_transform()
-    elif pcd_files:
-        file = pcd_files[0]
-        point_xyz = o3d.io.read_point_cloud(file)
-        matrix = get_flatten_matrix(point_xyz.points)
-    else:
-        print("No point cloud files found.")
-        return np.array([])
-    return matrix
-
-
-def main():
-    args = args_parser()
-    pcd_files = get_files_in_current_directory(args.dir)
-    if not pcd_files:
-        print("No point cloud files found.")
-        return
-    out_dir = get_output_directory(args.outdir)
-    log_enable = True if args.log == 1 else False
-    if log_enable:
-        log_dir = get_output_directory(args.logdir, 'log')
-    else:
-        log_dir = ''
-    tqdm_enable = True if args.tqdm == 1 else False
-    gf = GroundFinder(enable_logger=log_enable,
-                      logger_dir=log_dir, enable_tqdm=tqdm_enable)
-    version = 'GroundFinder'
-    project = 'GroundFinder'
-    if gf.parallel(pcd_files):
-        matrix = gf.get_parallel_transform()
-    else:
-        version = 'open3dSegmentPlane'
-        file = pcd_files[0]
-        project = os.path.basename(file).split('.')[0]
-        point_xyz = o3d.io.read_point_cloud(file)
-        matrix = get_flatten_matrix(point_xyz.points)
-    matrix_str = matrix_format(matrix)
-    date_str = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
-    yaml_data = {
-        'version': version,
-        'date': date_str,
-        'project': project,
-        'flat': {
-            'transform': matrix_str
-        }
-    }
-    write_yaml(os.path.join(out_dir, f'matrix-{date_str}.yaml'), yaml_data)
-
-
-if __name__ == "__main__":
-    main()
+def get_flatten_matrix(points, width=100, length=50.0, w_step=1.0, l_step=1.0):
+    points = np.asarray(points)
+    grids_width = int(length / l_step)
+    grids_length = int(width / w_step)
+    grids = [[10000, 0, 0]] * (grids_width * grids_length)
+    for point in points:
+        w = int((point[1] + width / 2) / w_step)
+        l = int(point[2] / l_step)
+        if w >= 0 and w < grids_width and l >= 0 and l < grids_length:
+            if point[0] < grids[l*grids_width + w][0]:
+                grids[l*grids_width + w] = [point[0], point[1], point[2]]
+    surface_points = [grid for grid in grids if grid[0] < 10.0]
+    surface_cloud = o3d.geometry.PointCloud()
+    surface_cloud.points = o3d.utility.Vector3dVector(surface_points)
+    plane_model, inliers = surface_cloud.segment_plane(
+        distance_threshold=0.15, ransac_n=3, num_iterations=200)
+    axis = np.cross(plane_model[:3], [1, 0, 0])
+    angle = np.arccos(np.dot(plane_model[:3],  [1, 0, 0]))
+    rot = rotation_matrix(axis, -angle)
+    transf = np.eye(4)
+    transf[:3, :3] = rot
+    transf[0, 3] = plane_model[3]
+    return transf
