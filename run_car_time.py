@@ -12,8 +12,8 @@ def convert_polar(points_df):
         lambda r: cartesian_to_polar(r['z'], r['y'], r['x']), axis=1
     )
     points_df['rho'] = points_df['all'].apply(lambda x: x[0])
-    points_df['theta'] = points_df['all'].apply(lambda x: x[1])
-    points_df['phi'] = points_df['all'].apply(lambda x: x[2])
+    points_df['phi'] = points_df['all'].apply(lambda x: x[1])
+    points_df['theta'] = points_df['all'].apply(lambda x: x[2])
     points_df.drop('all', axis=1, inplace=True)
     return points_df
 

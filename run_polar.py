@@ -4,11 +4,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import random
+from utils.util_tools import points_transformation, inverse_transform
+from pre_fusion.tools import read_matrix_from_yaml
 
 
-def convert_polar(points_df):
+def convert_polar(points_df, x_name='x', y_name='y', z_name='z'):
     points_df['all'] = points_df.apply(
-        lambda r: cartesian_to_polar(r['z'], r['y'], r['x']), axis=1
+        lambda r: cartesian_to_polar(r[z_name], r[y_name], r[x_name]), axis=1
     )
     points_df['rho'] = points_df['all'].apply(lambda x: x[0])
     points_df['theta'] = points_df['all'].apply(lambda x: x[1])
@@ -30,8 +32,8 @@ def cartesian_to_polar(x, y, z):
     return r, theta, phi
 
 
-def cal_img(df, res, bz='median'):
-    points_df = convert_polar(df)
+def cal_img(df, res, bz='median', x_name='x', y_name='y', z_name='z'):
+    points_df = convert_polar(df, x_name, y_name, z_name)
     phi_min = points_df['phi'].min()
     phi_max = points_df['phi'].max()
     theta_min = points_df['theta'].min()
@@ -142,7 +144,7 @@ def get_pts(dir, bz='_96_'):
                 continue
 
             final_files = os.listdir(next_dir)
-            random_files = random.sample(final_files, 2)
+            random_files = random.sample(final_files, 1)
             cal_files.extend([os.path.join(next_dir, i_f)
                               for i_f in random_files])
     return deal_pts(cal_files), len(cal_files)
@@ -206,25 +208,87 @@ def save_fig(img, outpath):
     plt.savefig(outpath, format='png', dpi=300)
 
 
-if __name__ == '__main__':
+def out_h():
+    parral_file = '/home/demo/Documents/datasets/s228/two0905/matrix/01_parallel_falcon.yaml'
+    parral_matrix = read_matrix_from_yaml(parral_file)
     dir = '/home/demo/Documents/datasets/pcd/'
-    # out_dir = './out_polor/'
+    out_dir = './out_polor_h/'
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    res = 0.01
+    bz = '_96_'
+    df, file_num = get_pts(dir, bz=bz)
+    tmp_points = df[['x', 'y', 'z']]
+    df[['parallel_x', 'parallel_y', 'parallel_z']
+       ] = points_transformation(tmp_points, parral_matrix['lidar_01'])
+    h = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+    for i in range(len(h) + 1):
+        if i == 0:
+            tmp_df = df[df['parallel_x'] < h[i]]
+        elif i == len(h):
+            tmp_df = df[df['parallel_x'] > h[i - 1]]
+        else:
+            tmp_df = df[(df['parallel_x'] >= h[i - 1])
+                        & (df['parallel_x'] < h[i])]
+        imgs, phi_min, theta_min = cal_img(tmp_df, res, 'avg')
+        save_result(
+            imgs, res, f'{out_dir}{file_num}{bz}{i}', phi_min, theta_min)
+
+
+def out_2_to_1():
+    parral_file = '/home/demo/Documents/datasets/s228/two0905/matrix/01_parallel_falcon.yaml'
+    parral_matrix = read_matrix_from_yaml(parral_file)
+    fusion_file = '/home/demo/Documents/datasets/s228/two0905/matrix/fusion_falcon.yaml'
+    fusion_matrix = read_matrix_from_yaml(fusion_file)
+    dir = '/home/demo/Documents/datasets/pcd/'
+    out_dir = './out_polor_2_1/'
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    res = 0.01
+    bz = '_97_'
+    df, file_num = get_pts(dir, bz=bz)
+    tmp_points = df[['x', 'y', 'z']]
+    df[['parallel_x', 'parallel_y', 'parallel_z']] = points_transformation(
+        tmp_points, parral_matrix['lidar_02'])
+    tmp_points = df[['parallel_x', 'parallel_y', 'parallel_z']]
+    df[['fusion_x', 'fusion_y', 'fusion_z']] = points_transformation(
+        tmp_points, fusion_matrix['lidar_02']
+    )
+    tmp_points = df[['fusion_x', 'fusion_y', 'fusion_z']]
+    df[['i_fusion_x', 'i_fusion_y', 'i_fusion_z']] = inverse_transform(
+        tmp_points, fusion_matrix['lidar_01']
+    )
+
+    imgs, phi_min, theta_min = cal_img(
+        df, res, bz='avg', x_name='i_fusion_x', y_name='i_fusion_y', z_name='i_fusion_z')
+    save_result(
+        imgs, res, f'{out_dir}{file_num}{bz}', phi_min, theta_min)
+
+
+if __name__ == '__main__':
+    out_2_to_1()
+    # parral_file = '/home/demo/Documents/datasets/s228/two0905/matrix/01_parallel_falcon.yaml'
+    # parral_matrix = read_matrix_from_yaml(parral_file)
+    # dir = '/home/demo/Documents/datasets/pcd/'
+    # out_dir = './out_polor_h/'
     # if not os.path.exists(out_dir):
     #     os.makedirs(out_dir)
     # res = 0.01
     # bz = '_96_'
     # df, file_num = get_pts(dir, bz=bz)
-    # imgs, phi_min, theta_min = cal_img(df, res, 'all')
-    # save_result(imgs, res, f'{out_dir}{file_num}{bz}', phi_min, theta_min)
 
-    out_dir = './out_yz/'
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    res = 0.3
-    bz = '_96_'
-    df, file_num = get_pts_yz(dir, bz=bz)
-    imgs, x_min, y_min = cal_img_yz(df, res, 'all')
-    save_result(imgs, res, f'{out_dir}{file_num}{bz}', x_min, y_min)
+    # imgs, phi_min, theta_min = cal_img(df, res, 'avg')
+    # save_result(
+    #     imgs, res, f'{out_dir}{file_num}{bz}', phi_min, theta_min)
+
+    # out_dir = './out_yz/'
+    # if not os.path.exists(out_dir):
+    #     os.makedirs(out_dir)
+    # res = 0.3
+    # bz = '_96_'
+    # df, file_num = get_pts_yz(dir, bz=bz)
+    # imgs, x_min, y_min = cal_img_yz(df, res, 'all')
+    # save_result(imgs, res, f'{out_dir}{file_num}{bz}', x_min, y_min)
 
 # file = '/home/demo/Documents/datasets/pcd/08_2/T20240905_082424_LiDAR_97_D1000/T20240905_082424_LiDAR_97_D1000-45.pcd'
 # cloud= PyntCloud.from_file(file)
