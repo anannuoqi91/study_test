@@ -373,42 +373,42 @@ if __name__ == '__main__':
     # cal_csv_img()
     # points_img()
     # ms_xy_h()
-    # car_csv([4.640, 1.780, 1.435])
+    car_csv([4.640, 1.780, 1.435])
     # car_csv([8.640, 2.380, 2.435])
     # car_csv([15.640, 2.380, 3.435])
     # car_csv([17.640, 2.780, 4.135])
     # for head in [-45, -35, -25, -15, -5, 5, 15, 25, 35, 45]:
     #     filepath = f'./lwh_17.64-2.78-4.135_heading_{head}.csv'
     #     cal_dis(filepath)
-    dir = './car/'
-    files = os.listdir(dir)
-    out = []
-    for file in files:
-        filepath = os.path.join(dir, file)
-        if not os.path.isfile(filepath) or '_dis.csv' not in file:
-            continue
+    # dir = './car/'
+    # files = os.listdir(dir)
+    # out = []
+    # for file in files:
+    #     filepath = os.path.join(dir, file)
+    #     if not os.path.isfile(filepath) or '_dis.csv' not in file:
+    #         continue
 
-        data = pd.read_csv(filepath)
-        df = data[(data['y'] < 1) & (data['y'] > -20)
-                  & (data['z'] > 13) & data['z'] < 60]
-        carsize = file.split('_')[1].split('-')
-        head = float(file.split('_')[-2])
-        max_row = df.loc[df['front_max'].idxmax()]
-        out.append([carsize, [max_row['x'], max_row['y'],
-                   max_row['z']], head, max_row['front_max'], max_row['back_max'], 'front_max', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
-        max_row = df.loc[df['back_max'].idxmax()]
-        out.append([carsize, [max_row['x'], max_row['y'],
-                   max_row['z']], head, max_row['front_max'], max_row['back_max'], 'back_max', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
-        max_row = df.loc[df['front_max'].idxmin()]
-        out.append([carsize, [max_row['x'], max_row['y'],
-                   max_row['z']], head, max_row['front_max'], max_row['back_max'], 'front_min', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
-        max_row = df.loc[df['back_max'].idxmin()]
-        out.append([carsize, [max_row['x'], max_row['y'],
-                   max_row['z']], head, max_row['front_max'], max_row['back_max'], 'back_min', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
+    #     data = pd.read_csv(filepath)
+    #     df = data[(data['y'] < 1) & (data['y'] > -20)
+    #               & (data['z'] > 13) & data['z'] < 60]
+    #     carsize = file.split('_')[1].split('-')
+    #     head = float(file.split('_')[-2])
+    #     max_row = df.loc[df['front_max'].idxmax()]
+    #     out.append([carsize, [max_row['x'], max_row['y'],
+    #                max_row['z']], head, max_row['front_max'], max_row['back_max'], 'front_max', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
+    #     max_row = df.loc[df['back_max'].idxmax()]
+    #     out.append([carsize, [max_row['x'], max_row['y'],
+    #                max_row['z']], head, max_row['front_max'], max_row['back_max'], 'back_max', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
+    #     max_row = df.loc[df['front_max'].idxmin()]
+    #     out.append([carsize, [max_row['x'], max_row['y'],
+    #                max_row['z']], head, max_row['front_max'], max_row['back_max'], 'front_min', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
+    #     max_row = df.loc[df['back_max'].idxmin()]
+    #     out.append([carsize, [max_row['x'], max_row['y'],
+    #                max_row['z']], head, max_row['front_max'], max_row['back_max'], 'back_min', [max_row['front_max_30_dis_m'], max_row['back_max_30_dis_m']], [max_row['front_max_120_dis_m'], max_row['back_max_120_dis_m']], [max_row['front_max_200_dis_m'], max_row['back_max_200_dis_m']]])
 
-    out = pd.DataFrame(out, columns=[
-                       'carsize', 'center_pos', 'head', 'time_front', 'time_back', 'bz', '30', '70', '120'])
-    out['l'] = out['carsize'].apply(lambda x: float(x[0]))
-    out = out.sort_values(by=['l', 'head', 'bz'])
-    out.drop(columns='l', inplace=True)
-    out.to_csv('./res.csv', index=False)
+    # out = pd.DataFrame(out, columns=[
+    #                    'carsize', 'center_pos', 'head', 'time_front', 'time_back', 'bz', '30', '70', '120'])
+    # out['l'] = out['carsize'].apply(lambda x: float(x[0]))
+    # out = out.sort_values(by=['l', 'head', 'bz'])
+    # out.drop(columns='l', inplace=True)
+    # out.to_csv('./res.csv', index=False)

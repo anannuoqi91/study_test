@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import random
-from utils.util_tools import points_transformation, inverse_transform
+from utils.util_tools import (
+    points_transformation, inverse_transform, cartesian_to_polar)
+from utils.util_file import mkdir_directory
 from pre_fusion.tools import read_matrix_from_yaml
 
 
@@ -13,23 +15,10 @@ def convert_polar(points_df, x_name='x', y_name='y', z_name='z'):
         lambda r: cartesian_to_polar(r[z_name], r[y_name], r[x_name]), axis=1
     )
     points_df['rho'] = points_df['all'].apply(lambda x: x[0])
-    points_df['theta'] = points_df['all'].apply(lambda x: x[1])
-    points_df['phi'] = points_df['all'].apply(lambda x: x[2])
+    points_df['phi'] = points_df['all'].apply(lambda x: x[1])
+    points_df['theta'] = points_df['all'].apply(lambda x: x[2])
     points_df.drop('all', axis=1, inplace=True)
     return points_df
-
-
-def cartesian_to_polar(x, y, z):
-    # 计算 r
-    r = np.sqrt(x**2 + y**2 + z**2)
-
-    # 计算 θ
-    theta = np.arctan2(y, x)  # 使用 arctan2 考虑象限
-
-    # 计算 φ
-    phi = np.arccos(z / r) if r != 0 else 0  # 避免除以零的情况
-
-    return r, theta, phi
 
 
 def cal_img(df, res, bz='median', x_name='x', y_name='y', z_name='z'):
@@ -38,8 +27,8 @@ def cal_img(df, res, bz='median', x_name='x', y_name='y', z_name='z'):
     phi_max = points_df['phi'].max()
     theta_min = points_df['theta'].min()
     theta_max = points_df['theta'].max()
-    r = int((phi_max - phi_min) / res) + 1
-    c = int((theta_max - theta_min) / res) + 1
+    c = int((phi_max - phi_min) / res) + 1
+    r = int((theta_max - theta_min) / res) + 1
     imgs = {}
     func = {
         'median': np.median,
@@ -57,11 +46,11 @@ def cal_img(df, res, bz='median', x_name='x', y_name='y', z_name='z'):
     else:
         imgs[bz] = np.zeros((r, c))
     for i in range(r):
-        start_phi = i * res + phi_min
-        end_phi = (i + 1) * res + phi_min
+        start_theta = i * res + theta_min
+        end_theta = (i + 1) * res + theta_min
         for j in range(c):
-            start_theta = j * res + theta_min
-            end_theta = (j + 1) * res + theta_min
+            start_phi = j * res + phi_min
+            end_phi = (j + 1) * res + phi_min
             tmp = points_df[(points_df['phi'] >= start_phi) &
                             (points_df['phi'] < end_phi) & (points_df['theta'] >= start_theta) &
                             (points_df['theta'] < end_theta)]
@@ -147,6 +136,17 @@ def get_pts(dir, bz='_96_'):
             random_files = random.sample(final_files, 1)
             cal_files.extend([os.path.join(next_dir, i_f)
                               for i_f in random_files])
+    return deal_pts(cal_files), len(cal_files)
+
+
+def get_pts_2(dir):
+    files = os.listdir(dir)
+    cal_files = []
+    for file in files:
+        one_dir = os.path.join(dir, file)
+        if not os.path.isfile(one_dir):
+            continue
+        cal_files.append(one_dir)
     return deal_pts(cal_files), len(cal_files)
 
 
@@ -265,8 +265,23 @@ def out_2_to_1():
         imgs, res, f'{out_dir}{file_num}{bz}', phi_min, theta_min)
 
 
+def generate_two_lidar_polar_time_result():
+    file_root_dir = '/home/demo/Documents/datasets/pcd/2024-05-23'
+    file_dir = ['LIDAR_220_18000MB_1716452708', 'LIDAR_221_18000MB_1716452708']
+    out_dir = './qing/polar/'
+    mkdir_directory(out_dir)
+    res = 0.01
+    bz = ['_220_', '_221_']
+    for i in range(2):
+        df, file_num = get_pts_2(os.path.join(file_root_dir, file_dir[i]))
+        imgs, phi_min, theta_min = cal_img(df, res, 'avg')
+        save_result(
+            imgs, res, f'{out_dir}{file_num}{bz[i]}', phi_min, theta_min)
+
+
 if __name__ == '__main__':
-    out_2_to_1()
+    generate_two_lidar_polar_time_result()
+    # out_2_to_1()
     # parral_file = '/home/demo/Documents/datasets/s228/two0905/matrix/01_parallel_falcon.yaml'
     # parral_matrix = read_matrix_from_yaml(parral_file)
     # dir = '/home/demo/Documents/datasets/pcd/'
@@ -290,46 +305,46 @@ if __name__ == '__main__':
     # imgs, x_min, y_min = cal_img_yz(df, res, 'all')
     # save_result(imgs, res, f'{out_dir}{file_num}{bz}', x_min, y_min)
 
-# file = '/home/demo/Documents/datasets/pcd/08_2/T20240905_082424_LiDAR_97_D1000/T20240905_082424_LiDAR_97_D1000-45.pcd'
-# cloud= PyntCloud.from_file(file)
-# points_df= cloud.points
-# points_df= convert_polar(points_df)
-# phi_min= points_df['phi'].min()
-# phi_max= points_df['phi'].max()
-# theta_min= points_df['theta'].min()
-# theta_max= points_df['theta'].max()
-# min_ms= points_df['time_ms'].min()
-# res= 0.01
-# r= int((phi_max - phi_min) / res) + 1
-# c= int((theta_max - theta_min) / res) + 1
-# img= np.zeros((r, c))
-# for i in range(r):
-#     start_phi= i * res + phi_min
-#     end_phi= (i + 1) * res + phi_min
-#     for j in range(c):
-#         start_theta= j * res + theta_min
-#         end_theta= (j + 1) * res + theta_min
-#         tmp= points_df[(points_df['phi'] >= start_phi) &
-#                         (points_df['phi'] < end_phi) & (points_df['theta'] >= start_theta) &
-#                         (points_df['theta'] < end_theta)]
-#         if len(tmp) > 0:
-#             # tmp_ms = np.median(tmp['time_ms'])
-#             tmp_ms= np.average(tmp['time_ms'])
-#             img[i][j]= int(tmp_ms - min_ms)
+    # file = '/home/demo/Documents/datasets/pcd/08_2/T20240905_082424_LiDAR_97_D1000/T20240905_082424_LiDAR_97_D1000-45.pcd'
+    # cloud= PyntCloud.from_file(file)
+    # points_df= cloud.points
+    # points_df= convert_polar(points_df)
+    # phi_min= points_df['phi'].min()
+    # phi_max= points_df['phi'].max()
+    # theta_min= points_df['theta'].min()
+    # theta_max= points_df['theta'].max()
+    # min_ms= points_df['time_ms'].min()
+    # res= 0.01
+    # r= int((phi_max - phi_min) / res) + 1
+    # c= int((theta_max - theta_min) / res) + 1
+    # img= np.zeros((r, c))
+    # for i in range(r):
+    #     start_phi= i * res + phi_min
+    #     end_phi= (i + 1) * res + phi_min
+    #     for j in range(c):
+    #         start_theta= j * res + theta_min
+    #         end_theta= (j + 1) * res + theta_min
+    #         tmp= points_df[(points_df['phi'] >= start_phi) &
+    #                         (points_df['phi'] < end_phi) & (points_df['theta'] >= start_theta) &
+    #                         (points_df['theta'] < end_theta)]
+    #         if len(tmp) > 0:
+    #             # tmp_ms = np.median(tmp['time_ms'])
+    #             tmp_ms= np.average(tmp['time_ms'])
+    #             img[i][j]= int(tmp_ms - min_ms)
 
-# columns_r= [f'c_{i}' for i in range(c)]
-# df= pd.DataFrame(img, columns=columns_r)
-# df.to_csv(f'./out_csv/polar_97_{res*1000}.csv', index=False)
+    # columns_r= [f'c_{i}' for i in range(c)]
+    # df= pd.DataFrame(img, columns=columns_r)
+    # df.to_csv(f'./out_csv/polar_97_{res*1000}.csv', index=False)
 
-# print(phi_min)
-# print(theta_min)
-# # 创建一个新的图形
-# plt.figure(figsize=(8, 6))
+    # print(phi_min)
+    # print(theta_min)
+    # # 创建一个新的图形
+    # plt.figure(figsize=(8, 6))
 
-# # 显示图像
-# plt.imshow(img)
-# plt.axis('off')  # 不显示坐标轴
-# plt.title('polar')
-# plt.savefig('./out_img/polar_96_avg.png', format='png', dpi=300)
-# # 显示图形
-# plt.show()
+    # # 显示图像
+    # plt.imshow(img)
+    # plt.axis('off')  # 不显示坐标轴
+    # plt.title('polar')
+    # plt.savefig('./out_img/polar_96_avg.png', format='png', dpi=300)
+    # # 显示图形
+    # plt.show()
