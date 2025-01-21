@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from utils.util_file import mkdir_directory
 from tqdm import tqdm
+from multiprocessing import Pool
+import copy
 
 
 def read_polar(path):
@@ -30,10 +32,10 @@ def find_ms(xyz, model_time):
     rs, cs = model_time['model'].shape
     x, y, z = xyz
     r, phi, theta = cartesian_to_polar(z, y, x)
-    # c = int((phi - model_time['phi_min']) / model_time['res'])
-    # r = int((theta - model_time['theta_min']) / model_time['res'])
-    c = int((phi - model_time['theta_min']) / model_time['res'])
-    r = int((theta - model_time['phi_min']) / model_time['res'])
+    c = int((phi - model_time['phi_min']) / model_time['res'])
+    r = int((theta - model_time['theta_min']) / model_time['res'])
+    # c = int((phi - model_time['theta_min']) / model_time['res'])
+    # r = int((theta - model_time['phi_min']) / model_time['res'])
     if r >= 0 and r < rs and c >= 0 and c < cs:
         return round(model_time['model'][r][c], 2)
     return None
@@ -124,7 +126,7 @@ def cal_car_ms(carsize, car_pt, heading, time_model_1, time_model_2, fusion_matr
         v_2 = inverse_transform(v_2, parral_matrix['lidar_02'])
         ms_2 = find_ms(v_2[0], time_model_2)
         if ms_1 is None or ms_2 is None:
-            print(f'lidar_{1 if ms_1 is None else 2} out range')
+            # print(f'lidar_{1 if ms_1 is None else 2} out range')
             continue
         deata_ms = round(abs(ms_2 - ms_1), 2)
         tmp = [carsize, car_pt, heading, k, ms_1, ms_2, deata_ms]
@@ -140,25 +142,66 @@ def out_car_csv(parral_file, fusion_file, time_model_1, time_model_2, out_dir, h
     m_f = read_matrix_from_yaml(fusion_file)
     time_model_1 = read_polar(time_model_1)
     time_model_2 = read_polar(time_model_2)
+    params = {'fusion_matrix': m_f,
+              'parallel_matrix': m_p,
+              'head': head,
+              'z': z,
+              'y': y,
+              'time_model_1': time_model_1,
+              'time_model_2': time_model_2}
 
     carsize = [[4.640, 1.780, 1.435], [8.640, 2.380, 2.435],
                [15.640, 2.380, 3.435], [17.640, 2.780, 4.135]]
-    # for size in carsize:
-    for size in tqdm(carsize, desc=f'cal car {size} ...'):
-        outpath = os.path.join(
+    cut_arg = []
+    for size in carsize:
+        tmp = copy.deepcopy(params)
+        tmp['carsize'] = size
+        tmp['outpath'] = os.path.join(
             out_dir, f'{size[0]}_{size[1]}_{size[2]}.csv')
-        out = None
-        for h in head:
-            for x_ in z:
-                for y_ in y:
-                    car_pt = [size[2] / 2, y_, x_]
-                    df = cal_car_ms(size, car_pt, h, time_model_1,
-                                    time_model_2, m_f, m_p)
-                    if out is None:
-                        out = df
-                    else:
-                        out = pd.concat([out, df], axis=0)
-        out.to_csv(outpath, index=False)
+        cut_arg.append(tmp)
+    with Pool(len(carsize)) as pool:
+        pool.map(single_car_for_pool, cut_arg)
+
+    # for size in carsize:
+    #     outpath = os.path.join(
+    #         out_dir, f'{size[0]}_{size[1]}_{size[2]}.csv')
+    #     out = None
+    #     for h in head:
+    #         for x_ in z:
+    #             for y_ in y:
+    #                 car_pt = [size[2] / 2, y_, x_]
+    #                 df = cal_car_ms(size, car_pt, h, time_model_1,
+    #                                 time_model_2, m_f, m_p)
+    #                 if out is None:
+    #                     out = df
+    #                 else:
+    #                     out = pd.concat([out, df], axis=0)
+    #     out.to_csv(outpath, index=False)
+
+
+def single_car_for_pool(args):
+    carsize = args['carsize']
+    outpath = args['outpath']
+    fusion_matrix = args['fusion_matrix']
+    parallel_matrix = args['parallel_matrix']
+    head = args['head']
+    z = args['z']
+    y = args['y']
+    time_model_1 = args['time_model_1']
+    time_model_2 = args['time_model_2']
+    out = None
+    for h in tqdm(head, desc='cal head...'):
+        for x_ in z:
+            for y_ in y:
+                car_pt = [carsize[2] / 2, y_, x_]
+                df = cal_car_ms(carsize, car_pt, h, time_model_1,
+                                time_model_2, fusion_matrix, parallel_matrix)
+                if out is None:
+                    out = df
+                else:
+                    out = pd.concat([out, df], axis=0)
+    print(f'{carsize} data size {len(out)}')
+    out.to_csv(outpath, index=False)
 
 
 def plan_test(parral_file, fusion_file, time_model_1, time_model_2):
